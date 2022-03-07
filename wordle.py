@@ -51,7 +51,11 @@ class Wordle():
         while True:
             self.user_word = input("Enter {} word: ".format(
                                     self.guess_lst[self.num_guess]))
-            if len(self.user_word) != word_length:
+            if self.user_word == "?":
+                print("Suggestions: {}".format(", ".join(
+                    [w for w in self.potential_words][:5])))
+                continue
+            elif len(self.user_word) != word_length:
                 print("Word must be {} characters.".format(word_length))
                 continue
             elif self.user_word not in self.the_words:
@@ -176,7 +180,7 @@ class Wordle():
                     [w for w in self.potential_words])))
             if self.assistance:
                print("Suggestions: {}".format(", ".join(
-                   [w for i, w in enumerate(self.potential_words) if i < 5])))
+                   [w for w in self.potential_words][:5])))
         else:
             print("Sorry, the answer is: {}".format(self.game_word))
 
@@ -184,7 +188,7 @@ if __name__ == "__main__":
     # Get command-line arguments
     parser = ArgumentParser(prog='wordle.py', usage='%(prog)s [options]',
                             description="The game of Wordle.",
-                            epilog="...is a lot of fun!")
+                            epilog='Use "?" in guess for suggestions')
     parser.add_argument('-a', '--assistance', action='store_true',
                         help='give word hints')
     parser.add_argument('-v', '--verbose', action='count', default=0,
