@@ -41,6 +41,7 @@ class WordleSolver():
         except (FileNotFoundError, PermissionError, OSError) as err:
             self.dictionary = err
         self.interactive = args.interactive
+        self.verbose = print if args.verbose else lambda a, **v: None
 
     def __user_prompt(self, args):
         for i, l in enumerate(self.letters):
@@ -118,6 +119,7 @@ class WordleSolver():
         required_letters = ["(?=.*{})".format(c) for c in rl]
         ss = "(?:{})^{}$".format(''.join(required_letters), temp_str) if \
                           required_letters else rf"^{temp_str}$"
+        self.verbose("search: {}".format(ss))
         regex = compile(ss)
         with open(self.dictionary, 'r') as d:
             for line in d.readlines():
