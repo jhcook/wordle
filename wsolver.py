@@ -1,66 +1,68 @@
 #!/usr/bin/env python3
-# A solver tool for Wordle.
-# Copyright (C) 2022 Justin Cook
+"""A solver tool for Wordle.
+Copyright (C) 2022 Justin Cook
 
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
 
-from sys import exit
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+
 from argparse import ArgumentParser
 from re import compile
 from collections import Counter
 
-word_length = 5
+WORD_LENGTH = 5
 
 class WordleSolver():
-    
+    """A pretty good solver for beating Wordle"""
+
     letters = ['first', 'second', 'third', 'fourth', 'fifth']
 
-    def __init__(self, args):
+    def __init__(self, cargs):
         self.potential_words = []
+        self.frequency = None
         self.blacked_out = set()
-        self.unknown_chars = {i: set() for i in range(word_length)}
-        self.srch_str = ['[a-z]{1}'] * word_length
-        self.study = args.study
-        self.dictionary = args.words if args.words else "/usr/share/dict/words"
+        self.unknown_chars = {i: set() for i in range(WORD_LENGTH)}
+        self.srch_str = ['[a-z]{1}'] * WORD_LENGTH
+        self.study = cargs.study
+        self.dictionary = cargs.words if cargs.words else "/usr/share/dict/words"
         try:
-            with open(self.dictionary, 'r') as d:
-                searcher = compile(f"^[a-z]{{{word_length}}}$")
+            with open(self.dictionary, 'r', encoding='utf-8') as d:
+                searcher = compile(f"^[a-z]{{{WORD_LENGTH}}}$")
                 self.the_words = [line.strip() for line in d.readlines()
                                   if searcher.search(line)]
-        except (FileNotFoundError, PermissionError, OSError) as err:
+        except OSError as err:
             self.dictionary = err
-        self.interactive = args.interactive
-        self.verbose = print if args.verbose else lambda a, **v: None
+        self.interactive = cargs.interactive
+        self.verbose = print if cargs.verbose else lambda a, **v: None
 
-    def __user_prompt(self, args):
+    def __user_prompt(self, cargs):
         for i, l in enumerate(self.letters):
             if self.interactive:
                 known = input(f"{l} known letter: ")
             else:
-                known = eval(f"args.{l}")
+                known = eval(f"cargs.{l}")
             if known.startswith('!'):
-                [self.unknown_chars[i].add(c) for c in known[1:]]
+                _ = [self.unknown_chars[i].add(c) for c in known[1:]]
             elif known:
                 self.srch_str[i] = known
         if self.interactive:
-            [self.blacked_out.add(c) for c in input("Known duds: ")]
+            _ = [self.blacked_out.add(c) for c in input("Known duds: ")]
         else:
-            [self.blacked_out.add(c) for c in args.dud]
-    
-    def __letter_frequency(self): 
+            _ = [self.blacked_out.add(c) for c in cargs.dud]
+
+    def __letter_frequency(self):
         potential_words = {w: Counter(w) for w in self.potential_words}
-        potential_words = {k: v for k, v in sorted(potential_words.items(), 
+        potential_words = {k: v for k, v in sorted(potential_words.items(),
                            key=self.frequency, reverse=True)}
         self.potential_words = [k for k in potential_words]
 
@@ -70,21 +72,22 @@ class WordleSolver():
         distribution.
         """
         if not self.study:
-            self.frequency =lambda c: [len(set(c[1].keys()))*4] + \
-                                      [c[1][l]*3 for l in 'sea'] + \
-                                      [c[1][l]*2 for l in 'ori'] + \
-                                      [c[1][l] for l in 'ltn']
+            self.frequency = lambda c: [len(set(c[1].keys()))*4] + \
+                                       [c[1][l]*3 for l in 'sea'] + \
+                                       [c[1][l]*2 for l in 'ori'] + \
+                                       [c[1][l] for l in 'ltn']
             return
 
         # Count all letters across all words in the dictionary.
         letter_count = Counter()
-        [letter_count.update(w) for w in self.the_words]
+        _ = [letter_count.update(w) for w in self.the_words]
 
         # Group the letters by 10%. Counters are ordered by value.
         letter_groups = {}
         i, rank = (0, 0)
         for letter, count in letter_count.most_common():
-            if rank == 0: rank = count
+            if rank == 0:
+                rank = count
             letter_groups.setdefault(i, [])
             if count <= int(.9*rank):
                 i += 1
@@ -103,10 +106,11 @@ class WordleSolver():
 
     def __gen_search(self):
         for i, v in enumerate(self.srch_str):
-            if not self.unknown_chars[i] and not self.blacked_out: continue
+            if not self.unknown_chars[i] and not self.blacked_out:
+                continue
             if len(v) > 1:
-                self.srch_str[i] = "(?:(?![{}])[a-z]){{1}}".format(''.join(
-                            set.union(self.unknown_chars[i], self.blacked_out)))
+                schars = ''.join(set.union(self.unknown_chars[i], self.blacked_out))
+                self.srch_str[i] = f"(?:(?![{schars}])[a-z]){{1}}"
 
     def __search_dictionary(self):
         """Consult known matched characters `self.srch_str` to narrow down
@@ -114,21 +118,22 @@ class WordleSolver():
         """
         self.potential_words = []
         temp_str = ''.join(self.srch_str)
-        tl = self.unknown_chars.values() 
+        tl = self.unknown_chars.values()
         rl = set([item for tl in tl for item in tl])
-        required_letters = ["(?=.*{})".format(c) for c in rl]
-        ss = "(?:{})^{}$".format(''.join(required_letters), temp_str) if \
+        required_letters = [f"(?=.*{c})" for c in rl]
+        ss = f"(?:{''.join(required_letters)})^{temp_str}$" if \
                           required_letters else rf"^{temp_str}$"
-        self.verbose("search: {}".format(ss))
+        self.verbose(f"search: {ss}")
         regex = compile(ss)
-        with open(self.dictionary, 'r') as d:
+        with open(self.dictionary, 'r', encoding='utf-8') as d:
             for line in d.readlines():
                 word = regex.search(line)
                 if word:
                     self.potential_words.append(word.group())
 
-    def play(self, args=None):
-        self.__user_prompt(args)
+    def play(self, cargs=None):
+        """Play the game"""
+        self.__user_prompt(cargs)
         self.__gen_search()
         self.__search_dictionary()
         self.__gen_frequency()
@@ -162,16 +167,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Create solver
-    wordle = WordleSolver(args)
-    if issubclass(type(wordle.dictionary), BaseException):
-        print(wordle.dictionary)
+    wrdl = WordleSolver(args)
+    if issubclass(type(wrdl.dictionary), BaseException):
+        print(wrdl.dictionary)
         exit(2)
 
     # Generate and display words
-    wordle.play(args)
+    wrdl.play(args)
     if not args.verbose:
-        print("Suggestions: {}".format(", ".join([w for i, w in
-                                enumerate(wordle.potential_words) if i < 5])))
+        print(f"Suggestions: {", ".join([w for i, w in enumerate(wrdl.potential_words) if i < 5])}")
     else:
-        print("Suggestions: {}".format(", ".join([w for w in 
-                                                  wordle.potential_words])))
+        print(f"Suggestions: {", ".join([w for w in wrdl.potential_words])}")
