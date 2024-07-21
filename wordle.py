@@ -47,7 +47,7 @@ class Wordle():
         self.unknown_chars = {i: set() for i in range(WORD_LENGTH)}
         self.assistance = assistance
         self.verbose = print if verbose else lambda *a, **k: None
-        self.suggestion = lambda x: print(f"Suggestions: {x}")
+        self.suggestion = lambda x: print(f"Suggestions: {x}") if assistance and not verbose else lambda x: None
         self.user_word = None
         self.frequency = None
 
@@ -94,11 +94,11 @@ class Wordle():
         """
         # Count all letters across all words in the dictionary.
         letter_count = Counter()
-        _ = [letter_count.update(w) for w in self.the_words]
+        _ = [letter_count.update(w) for w in self.potential_words]
         self.verbose(f"letter count: {letter_count}")
 
         # Group the letters by 10%. Counters are ordered by value.
-        letter_groups = {}
+        letter_groups = {i:[] for i in range(7)}
         i, rank = (0, 0)
         for letter, count in letter_count.most_common():
             if rank == 0:
@@ -166,7 +166,6 @@ class Wordle():
 
     def play(self):
         """Play Wordle"""
-        self.__gen_frequency()
         while self.num_guess < len(self.guess_lst):
             # Prompt for user try
             self.__user_guess()
@@ -178,10 +177,10 @@ class Wordle():
                 print("Good job!")
                 break
             # Print suggested words
+            self.__gen_frequency()
             self.__letter_frequency()
-            self.verbose("Suggestions: {", ".join([w for w in self.potential_words])}")
-            if self.assistance:
-                self.suggestion(", ".join([w for w in self.potential_words][:5]))
+            self.verbose(f"Suggestions: {", ".join([w for w in self.potential_words])}")
+            self.suggestion(", ".join([w for w in self.potential_words][:5]))
         else:
             print(f"Sorry, the answer is: {self.game_word}")
 
