@@ -33,7 +33,6 @@ class WordleSolver():
         self.blacked_out = set()
         self.unknown_chars = {i: set() for i in range(WORD_LENGTH)}
         self.srch_str = ['[a-z]{1}'] * WORD_LENGTH
-        self.study = cargs.study
         self.dictionary = cargs.words if cargs.words else "/usr/share/dict/words"
         try:
             with open(self.dictionary, 'r', encoding='utf-8') as d:
@@ -46,6 +45,7 @@ class WordleSolver():
         self.verbose = print if cargs.verbose else lambda a, **v: None
 
     def __user_prompt(self, cargs):
+        """Prompt the user for known letters and duds."""
         for i, l in enumerate(self.letters):
             if self.interactive:
                 known = input(f"{l} known letter: ")
@@ -61,29 +61,25 @@ class WordleSolver():
             _ = [self.blacked_out.add(c) for c in cargs.dud]
 
     def __letter_frequency(self):
+        """Count the letters in potential words and sort by frequency."""
         potential_words = {w: Counter(w) for w in self.potential_words}
         potential_words = {k: v for k, v in sorted(potential_words.items(),
                            key=self.frequency, reverse=True)}
         self.potential_words = [k for k in potential_words]
 
     def __gen_frequency(self):
-        """Calculate letter frequency amost all five-letter words in the
-        dictionary and create an algorithm weighing groups of letters and
+        """Calculate letter frequency amongst all five-letter potential
+        words and create an algorithm weighing groups of letters and
         distribution.
         """
-        if not self.study:
-            self.frequency = lambda c: [len(set(c[1].keys()))*4] + \
-                                       [c[1][l]*3 for l in 'sea'] + \
-                                       [c[1][l]*2 for l in 'ori'] + \
-                                       [c[1][l] for l in 'ltn']
-            return
 
-        # Count all letters across all words in the dictionary.
+        # Count all letters across all potential words.
         letter_count = Counter()
-        _ = [letter_count.update(w) for w in self.the_words]
+        _ = [letter_count.update(w) for w in self.potential_words]
+        self.verbose(f"letter_count: {letter_count}")
 
         # Group the letters by 10%. Counters are ordered by value.
-        letter_groups = {}
+        letter_groups = {i:[] for i in range(7)}
         i, rank = (0, 0)
         for letter, count in letter_count.most_common():
             if rank == 0:
@@ -94,7 +90,7 @@ class WordleSolver():
                 rank = count
                 letter_groups.setdefault(i, [])
             letter_groups[i].extend(letter)
-
+        self.verbose(f"letter_groups: {letter_groups}")
         self.frequency = lambda c: [len(set(c[1].keys()))*8] + \
                                    [c[1][l]*7 for l in letter_groups[0]] + \
                                    [c[1][l]*6 for l in letter_groups[1]] + \
@@ -156,8 +152,6 @@ if __name__ == "__main__":
                         help='5th character hint')
     parser.add_argument('-i', '--interactive', action='store_true',
                         help='interactive session')
-    parser.add_argument('-s', '--study', action='store_true',
-                        help='analyze the dictionary for letter frequency')
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='increase verbosity')
     parser.add_argument('-w', '--words', type=str, default='',
