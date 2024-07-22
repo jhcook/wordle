@@ -179,7 +179,7 @@ class Wordle():
             # Print suggested words
             self.__gen_frequency()
             self.__letter_frequency()
-            self.verbose(f"Suggestions: {", ".join([w for w in self.potential_words])}")
+            self.verbose(f"Suggestions: {', '.join([w for w in self.potential_words])}")
             self.suggestion(", ".join([w for w in self.potential_words][:5]))
         else:
             print(f"Sorry, the answer is: {self.game_word}")
