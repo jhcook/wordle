@@ -20,7 +20,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from argparse import ArgumentParser
 from re import compile
 from collections import Counter
-from random import choice
+from random import choice, sample
 
 WORD_LENGTH = 5
 
@@ -56,7 +56,13 @@ class Wordle():
         while True:
             self.user_word = input(f"Enter {self.guess_lst[self.num_guess]} word: ")
             if self.user_word == "?":
-                self.suggestion(", ".join([w for w in self.potential_words][:5]))
+                if not self.potential_words:
+                    self.__search_dictionary()
+                if len(self.potential_words) < 5:
+                    suggestions = self.potential_words
+                else:
+                    suggestions = sample(self.potential_words, 5)
+                print(f"Suggestions: {", ".join(suggestions)}")
                 continue
             elif len(self.user_word) != WORD_LENGTH:
                 print(f"Word must be {WORD_LENGTH} characters.")
