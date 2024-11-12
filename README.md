@@ -31,9 +31,13 @@ The game of Wordle.
 optional arguments:
   -h, --help            show this help message and exit
   -a, --assistance      give word hints
+  -s, --simulate        simulate a play that needs the first guess
   -v, --verbose         increase verbosity
   -w WORDS, --words WORDS
                         path to dictionary
+  --first FIRST         use as first guess
+  --simulator           simulate playing the entire dictionary (hours/days runtime)
+  --word WORD           use as Wordle® word
 
 Use "?" in guess for suggestions
 ```
@@ -73,6 +77,59 @@ Suggestions: ducal
 Enter 3rd word: ducal
  D  U  C  A  L
 Good job!
+```
+
+One can play with options to
+* provide the first word
+* provide the word to solve
+* simulate a play
+* simulate playing the entire dictionary for statistical purposes
+
+Providing the first word is usually used to simulate a play or starting a
+simulation from a poing in the dictionary.
+
+```bash
+$ ./wordle.py -w dict/wordlewords --first stack --simulate
+ S  T  A  C  K 
+ O  L  D  E  R 
+ B  I  L  G  E 
+ N  E  W  L  Y 
+ Q  U  E  L  L 
+Good job!
+```
+
+```bash
+$ ./wordle.py -w dict/wordlewords --first stack --word stuff --simulate
+ S  T  A  C  K 
+ S  T  O  N  E 
+ S  T  R  I  P 
+ S  T  U  D  Y 
+ S  T  U  F  F 
+Good job!
+```
+
+You can simulate the entire dictionary which prints out the successful words
+solved and unsuccessful plays. This is multithreaded, but for dictionaries with
+1000s of words takes several hours.
+
+```bash
+$ ./wordle.py -w dict/wordlewords --simulator
+word,good,bad
+amend,2303,13
+brush,2301,15
+cycle,2284,32
+blimp,2304,12
+...
+```
+
+The above output can be redirected to a file for later analysis, e.g.,
+
+```bash
+$ sort -t, -k3,3n ~/repo/wordle/reactlewords.csv
+blimp,2304,12
+amend,2303,13
+brush,2301,15
+cycle,2284,32
 ```
 
 ## Wordle Solver
@@ -184,4 +241,17 @@ The non-interactive command-line argument version:
 ```bash
 $ ./wsolver.py -a '!l' -b '!uc' -c u -d l -z nhoi -w dict/wordlewords
 Suggestions: caulk
+```
+
+JSON can be piped to stdin and becomes useful for scripts.
+
+```bash
+$ ./wsolver.py << EOF                                      
+{                 
+  "third": "o",
+  "words": "dict/wordlewords",
+  "dud": "arh"
+}
+EOF
+stole
 ```
