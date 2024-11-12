@@ -238,7 +238,10 @@ def simulator():
 
     print("word,good,bad", flush=True)
 
-    tasks = [(firstword, words) for firstword in words]
+    # Make a copy of THE_WORDS as passing a global to a thread pool uses loads
+    # of system cpu / context switching.
+    dictionary = THE_WORDS
+    tasks = [(firstword, dictionary) for firstword in words]
     with Pool(processes=cpu_count()) as pool:
         pool.map(worker, tasks)
 
