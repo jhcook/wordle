@@ -15,7 +15,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-
+from sys import stdin
+from json import loads, JSONDecodeError
 from argparse import ArgumentParser
 from re import compile
 from collections import Counter
@@ -158,7 +159,19 @@ if __name__ == "__main__":
                         help='path to dictionary')
     parser.add_argument('-z', '--dud', type=str, default='',
                         help='characters not in word')
-    args = parser.parse_args()
+    if not stdin.isatty():
+        input_data = stdin.read().strip()
+        try:
+            json_data = loads(input_data)
+            args = parser.parse_args([])
+            for key, value in json_data.items():
+                if hasattr(args, key):
+                    setattr(args, key, value)
+        except JSONDecodeError:
+            print("Invalid JSON input")
+            exit(1)
+    else:
+        args = parser.parse_args()
 
     # Create solver
     wrdl = WordleSolver(args)
@@ -168,7 +181,9 @@ if __name__ == "__main__":
 
     # Generate and display words
     wrdl.play(args)
-    if not args.verbose:
-        print(f"Suggestions: {", ".join([w for i, w in enumerate(wrdl.potential_words) if i < 5])}")
+    if not stdin.isatty():
+        print(wrdl.potential_words[0])
+    elif not args.verbose:
+        print(f"Suggestions: {', '.join([w for i, w in enumerate(wrdl.potential_words) if i < 5])}")
     else:
-        print(f"Suggestions: {", ".join([w for w in wrdl.potential_words])}")
+        print(f"Suggestions: {', '.join([w for w in wrdl.potential_words])}")
