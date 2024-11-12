@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 An implementation of Wordle.
-Copyright (C) 2022 Justin Cook
+Copyright (C) 2022-2024 Justin Cook
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,40 +21,41 @@ from argparse import ArgumentParser
 from re import compile
 from collections import Counter
 from random import choice, sample
+from multiprocessing import cpu_count, Pool, Manager
 
 WORD_LENGTH = 5
+THE_WORDS = []
+ARGUMENTS = None
 
 class Wordle():
     """A command-line Worlde® implementation"""
     guess_lst = ['1st', '2nd', '3rd', '4th', '5th', '6th']
 
-    def __init__(self, words=None, assistance=False, verbose=False):
-        # Get a word six characters in length
-        self.dictionary = words if words else "/usr/share/dict/words"
-        try:
-            with open(self.dictionary, 'r', encoding='utf-8') as d:
-                searcher = compile(f"^[a-z]{{{WORD_LENGTH}}}$")
-                self.the_words = [line.strip() for line in d.readlines()
-                                  if searcher.search(line)]
-                self.game_word = choice(self.the_words)
-        except (OSError, IndexError) as err:
-            self.game_word = err
+    def __init__(self, assistance=False, simulate=False, verbose=False,
+                 first=None, word=None, **kwargs):
+        self.game_word = word if word else choice(THE_WORDS)
         self.srch_str = ["[a-z]"] * WORD_LENGTH
-        self.potential_words = []
+        self.potential_words = [first] if first else []
         self.wrdl = [None] * WORD_LENGTH
         self.num_guess = 0
         self.blacked_out = set()
         self.unknown_chars = {i: set() for i in range(WORD_LENGTH)}
         self.assistance = assistance
+        self.simulate = simulate
         self.verbose = print if verbose else lambda *a, **k: None
         self.suggestion = lambda x: print(f"Suggestions: {x}") if assistance and not verbose else lambda x: None
+        self.quiet = False
+        self.printer = lambda x: print(f"{x}") if not self.quiet else lambda x: None
         self.user_word = None
         self.frequency = None
 
     def __user_guess(self):
         """Prompt the user for input and increment num_guess"""
         while True:
-            self.user_word = input(f"Enter {self.guess_lst[self.num_guess]} word: ")
+            if self.simulate and len(self.potential_words) > 0:
+                self.user_word = self.potential_words[0]
+            else:
+                self.user_word = input(f"Enter {self.guess_lst[self.num_guess]} word: ")
             if self.user_word == "?":
                 if not self.potential_words:
                     self.__search_dictionary()
@@ -62,13 +63,13 @@ class Wordle():
                     suggestions = self.potential_words
                 else:
                     suggestions = sample(self.potential_words, 5)
-                print(f"Suggestions: {", ".join(suggestions)}")
+                print(f'Suggestions: {", ".join(suggestions)}')
                 continue
             elif len(self.user_word) != WORD_LENGTH:
-                print(f"Word must be {WORD_LENGTH} characters.")
+                self.printer(f"Word must be {WORD_LENGTH} characters.")
                 continue
-            elif self.user_word not in self.the_words:
-                print("That's not a word!")
+            elif self.user_word not in THE_WORDS:
+                self.printer("That's not a word!")
                 continue
             self.num_guess += 1
             break
@@ -86,12 +87,7 @@ class Wordle():
                                     required_letters else rf"^{temp_str}$"
         self.verbose(f"search: {ss}")
         regex = compile(ss)
-        with open(self.dictionary, 'r', encoding='utf-8') as d:
-            self.verbose(f"known strays: {required_letters}")
-            for line in d.readlines():
-                word = regex.search(line)
-                if word:
-                    self.potential_words.append(word.group())
+        _ = [self.potential_words.append(w) for w in THE_WORDS if regex.search(w)]
 
     def __gen_frequency(self):
         """Calculate letter frequency amost all five-letter words in the
@@ -145,7 +141,7 @@ class Wordle():
         self.__search_dictionary()
 
     def __gen_wordle(self):
-        """Enumerate through `self.user_word` anc compare each character with
+        """Enumerate through `self.user_word` and compare each character with
         `self.game_word`. Update `self.wrdl` with the appropriate character and
         recreate the search string based on the results."""
         for i, v in enumerate(self.user_word):
@@ -171,16 +167,16 @@ class Wordle():
                 self.srch_str[i] = f"(?:(?![{schars}])[a-z]){{1}}"
 
     def play(self):
-        """Play Wordle"""
+        """A single play of Wordle®"""
         while self.num_guess < len(self.guess_lst):
             # Prompt for user try
             self.__user_guess()
             # Check user's input
             self.__check_guess()
             # Print Wordle
-            print("".join(self.wrdl))
+            self.printer("".join(self.wrdl))
             if self.user_word == self.game_word.lower():
-                print("Good job!")
+                self.printer("Good job!")
                 break
             # Print suggested words
             self.__gen_frequency()
@@ -188,7 +184,63 @@ class Wordle():
             self.verbose(f"Suggestions: {', '.join([w for w in self.potential_words])}")
             self.suggestion(", ".join([w for w in self.potential_words][:5]))
         else:
-            print(f"Sorry, the answer is: {self.game_word}")
+            self.printer(f"Sorry, the answer is: {self.game_word}")
+            return False
+        return True
+
+def read_words():
+    """Read the dictionary and set THE_WORDS."""
+    global THE_WORDS
+    wrds = ARGUMENTS.words if ARGUMENTS.words else "/usr/share/dict/words"
+    searcher = compile(f"^[a-z]{{{WORD_LENGTH}}}$")
+    try:
+        with open(wrds, 'r') as f:
+            _ = [THE_WORDS.append(line.strip()) for line in f.readlines()
+                 if searcher.search(line)]
+    except (OSError, IndexError) as err:
+        print(f"Error: {err}")
+        exit(1)
+
+def worker(task):
+    """Use word as first guess and simulate a playing all Wordle® words.
+    Count the number of successful and unsuccessful games.
+    Print the results.
+    """
+    firstword, words = task
+    global THE_WORDS
+    THE_WORDS = words
+    good, bad = 0, 0
+    for word in words:
+        try:
+            wrdl = Wordle(simulate=True, first=firstword, word=word)
+            wrdl.quiet = True
+            if wrdl.play():
+                good += 1
+            else:
+                bad += 1
+        except KeyboardInterrupt:
+            return
+    print(f"{firstword},{good},{bad}", flush=True)
+
+def simulator():
+    """Play Wordle® as a simulator.
+    Iterate through the entire dictionary and play the game with each word as
+    the first guess. Print out the number of success and failures for each word.
+    """
+    found = False
+    words = []
+    for word in THE_WORDS:
+        if ARGUMENTS.first and not found:
+            if word != ARGUMENTS.first:
+                continue
+            found = True
+        words.append(word)
+
+    print("word,good,bad", flush=True)
+
+    tasks = [(firstword, words) for firstword in words]
+    with Pool(processes=cpu_count()) as pool:
+        pool.map(worker, tasks)
 
 if __name__ == "__main__":
     # Get command-line arguments
@@ -197,20 +249,37 @@ if __name__ == "__main__":
                             epilog='Use "?" in guess for suggestions')
     parser.add_argument('-a', '--assistance', action='store_true',
                         help='give word hints')
+    parser.add_argument('-s', '--simulate', action='store_true',
+                        help='simulate a play that needs the first guess') 
     parser.add_argument('-v', '--verbose', action='count', default=0,
                         help='increase verbosity')
     parser.add_argument('-w', '--words', type=str,
                         help='path to dictionary')
-    args = parser.parse_args()
+    parser.add_argument('--first', type=str, default=None,
+                        help='use as first guess')
+    parser.add_argument('--simulator', action='store_true',
+                        help='simulate playing the entire dictionary (hours/days runtime)')
+    parser.add_argument('--word', type=str,
+                        help='use as Wordle® word')
+    ARGUMENTS = parser.parse_args()
 
-    # Create game
-    wrdl = Wordle(**vars(args))
-    if issubclass(type(wrdl.game_word), BaseException):
-        print(wrdl.game_word)
-        exit(2)
+    # Read the dictionary
+    read_words()
 
-    # Play game
-    try:
-        wrdl.play()
-    except KeyboardInterrupt:
-        print()
+    if ARGUMENTS.simulator:
+        try:
+            simulator()
+        except KeyboardInterrupt:
+            print("Exiting...", flush=True)
+    else:
+        # Create game
+        wrdl = Wordle(**vars(ARGUMENTS))
+        if issubclass(type(wrdl.game_word), BaseException):
+            print(wrdl.game_word)
+            exit(2)
+
+        # Play game
+        try:
+            wrdl.play()
+        except KeyboardInterrupt:
+            print()
