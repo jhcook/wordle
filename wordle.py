@@ -21,8 +21,9 @@ from argparse import ArgumentParser
 from re import compile
 from collections import Counter
 from random import choice, sample
-from multiprocessing import cpu_count, Pool, Manager
+from multiprocessing import cpu_count, Pool
 
+# Set as globals for multiprocessing
 WORD_LENGTH = 5
 THE_WORDS = []
 ARGUMENTS = None
@@ -206,6 +207,7 @@ def worker(task):
     Count the number of successful and unsuccessful games.
     Print the results.
     """
+    # This is from multiprocessing.pool. We need to set the global THE_WORDS.
     firstword, words = task
     global THE_WORDS
     THE_WORDS = words
@@ -227,6 +229,8 @@ def simulator():
     Iterate through the entire dictionary and play the game with each word as
     the first guess. Print out the number of success and failures for each word.
     """
+    # Create a list of words to use as first guess and look for a specific word
+    # to start from.
     found = False
     words = []
     for word in THE_WORDS:
