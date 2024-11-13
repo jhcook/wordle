@@ -18,6 +18,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 
 from argparse import ArgumentParser
+from csv import Sniffer, reader as csvreader, Error as CsvError, DictReader
 from re import compile
 from collections import Counter
 from random import choice, sample
@@ -34,7 +35,8 @@ class Wordle():
 
     def __init__(self, assistance=False, simulate=False, verbose=False,
                  first=None, word=None, **kwargs):
-        self.game_word = word if word else choice(THE_WORDS)
+        self.game_word = word if word else choice(list(THE_WORDS.keys())
+                         if isinstance(THE_WORDS, dict) else THE_WORDS)
         self.srch_str = ["[a-z]"] * WORD_LENGTH
         self.potential_words = [first] if first else []
         self.wrdl = [None] * WORD_LENGTH
@@ -135,6 +137,10 @@ class Wordle():
         potential_words = {k: v for k, v in sorted(potential_words.items(),
                            key=self.frequency, reverse=True)}
         self.potential_words = [k for k in potential_words]
+        # If the dictionary is a dict then prioritise with weights
+        if isinstance(THE_WORDS, dict):
+            self.potential_words = sorted(self.potential_words,
+                                          key=lambda word: THE_WORDS[word])
 
     def __check_guess(self):
         self.__gen_wordle()
@@ -189,6 +195,19 @@ class Wordle():
             return False
         return True
 
+def is_csv_file(file_path):
+    """Detect if file_path is a CSV file"""
+    try:
+        with open(file_path, 'r', newline='') as file:
+            sniffer = Sniffer()
+            sample = file.read(1024)
+            file.seek(0)
+            _ = sniffer.has_header(sample)
+            csvreader(file)
+        return True
+    except CsvError:
+        return False
+
 def read_words():
     """Read the dictionary and set THE_WORDS."""
     global THE_WORDS
@@ -196,8 +215,13 @@ def read_words():
     searcher = compile(f"^[a-z]{{{WORD_LENGTH}}}$")
     try:
         with open(wrds, 'r') as f:
-            _ = [THE_WORDS.append(line.strip()) for line in f.readlines()
-                 if searcher.search(line)]
+            if is_csv_file(wrds):
+                csv_reader = DictReader(f)
+                THE_WORDS = {row['word']: int(row['bad']) for row in
+                             csv_reader if searcher.search(row['word'])}
+            else:
+                _ = [THE_WORDS.append(line.strip()) for line in f.readlines()
+                     if searcher.search(line)]
     except (OSError, IndexError) as err:
         print(f"Error: {err}")
         exit(1)

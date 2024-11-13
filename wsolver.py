@@ -15,13 +15,44 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
 from sys import stdin
+from csv import Sniffer, reader as csvreader, Error as CsvError, DictReader
 from json import loads, JSONDecodeError
 from argparse import ArgumentParser
 from re import compile
 from collections import Counter
 
 WORD_LENGTH = 5
+
+def is_csv_file(file_path):
+    """Detect if file_path is a CSV file"""
+    try:
+        with open(file_path, 'r', newline='') as file:
+            sniffer = Sniffer()
+            sample = file.read(1024)
+            file.seek(0)
+            _ = sniffer.has_header(sample)
+            csvreader(file)
+        return True
+    except CsvError:
+        return False
+
+def read_words(dfile=None):
+    """Read the dictionary and set THE_WORDS."""
+    wrds = dfile if dfile else "/usr/share/dict/words"
+    searcher = compile(f"^[a-z]{{{WORD_LENGTH}}}$")
+    try:
+        with open(wrds, 'r') as f:
+            if is_csv_file(wrds):
+                csv_reader = DictReader(f)
+                return {row['word']: int(row['bad']) for row in
+                        csv_reader if searcher.search(row['word'])}
+            else:
+                return [line.strip() for line in f.readlines() if searcher.search(line)]
+    except (OSError, IndexError) as err:
+        print(f"Error: {err}")
+        exit(255)
 
 class WordleSolver():
     """A pretty good solver for beating Wordle"""
@@ -35,13 +66,7 @@ class WordleSolver():
         self.unknown_chars = {i: set() for i in range(WORD_LENGTH)}
         self.srch_str = ['[a-z]{1}'] * WORD_LENGTH
         self.dictionary = cargs.words if cargs.words else "/usr/share/dict/words"
-        try:
-            with open(self.dictionary, 'r', encoding='utf-8') as d:
-                searcher = compile(f"^[a-z]{{{WORD_LENGTH}}}$")
-                self.the_words = [line.strip() for line in d.readlines()
-                                  if searcher.search(line)]
-        except OSError as err:
-            self.dictionary = err
+        self.the_words = read_words(self.dictionary)
         self.interactive = cargs.interactive
         self.verbose = print if cargs.verbose else lambda a, **v: None
 
@@ -67,6 +92,9 @@ class WordleSolver():
         potential_words = {k: v for k, v in sorted(potential_words.items(),
                            key=self.frequency, reverse=True)}
         self.potential_words = [k for k in potential_words]
+        if isinstance(self.the_words, dict):
+            self.potential_words = sorted(self.potential_words,
+                                          key=lambda word: self.the_words[word])
 
     def __gen_frequency(self):
         """Calculate letter frequency amongst all five-letter potential
@@ -122,11 +150,8 @@ class WordleSolver():
                           required_letters else rf"^{temp_str}$"
         self.verbose(f"search: {ss}")
         regex = compile(ss)
-        with open(self.dictionary, 'r', encoding='utf-8') as d:
-            for line in d.readlines():
-                word = regex.search(line)
-                if word:
-                    self.potential_words.append(word.group())
+        _ = [self.potential_words.append(w) for w in self.the_words if
+             regex.search(w)]
 
     def play(self, cargs=None):
         """Play the game"""
@@ -184,6 +209,6 @@ if __name__ == "__main__":
     if not stdin.isatty():
         print(wrdl.potential_words[0])
     elif not args.verbose:
-        print(f"Suggestions: {', '.join([w for i, w in enumerate(wrdl.potential_words) if i < 5])}")
+        print(f"Suggestions: {', '.join([w for w in wrdl.potential_words[:5]])}")
     else:
         print(f"Suggestions: {', '.join([w for w in wrdl.potential_words])}")
