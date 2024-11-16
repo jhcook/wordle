@@ -29,6 +29,33 @@ WORD_LENGTH = 5
 THE_WORDS = []
 ARGUMENTS = None
 
+def user_guess(wrdl):
+    """Prompt the user for input and increment num_guess.
+    This is a callback for the Wordle.play() method.
+    """
+    while True:
+        if wrdl.simulate and len(wrdl.potential_words) > 0:
+            wrdl.user_word = wrdl.potential_words[0]
+        else:
+            wrdl.user_word = input(f"Enter {wrdl.guess_lst[wrdl.num_guess]} word: ")
+        if wrdl.user_word == "?":
+            if not wrdl.potential_words:
+                wrdl.search_dictionary()
+            if len(wrdl.potential_words) < 5:
+                suggestions = wrdl.potential_words
+            else:
+                suggestions = sample(wrdl.potential_words, 5)
+            print(f'Suggestions: {", ".join(suggestions)}')
+            continue
+        elif len(wrdl.user_word) != WORD_LENGTH:
+            wrdl.printer(f"Word must be {WORD_LENGTH} characters.")
+            continue
+        elif wrdl.user_word not in THE_WORDS:
+            wrdl.printer("That's not a word!")
+            continue
+        wrdl.num_guess += 1
+        break
+
 class Wordle():
     """A command-line Worlde® implementation"""
     guess_lst = ['1st', '2nd', '3rd', '4th', '5th', '6th']
@@ -52,32 +79,7 @@ class Wordle():
         self.user_word = None
         self.frequency = None
 
-    def __user_guess(self):
-        """Prompt the user for input and increment num_guess"""
-        while True:
-            if self.simulate and len(self.potential_words) > 0:
-                self.user_word = self.potential_words[0]
-            else:
-                self.user_word = input(f"Enter {self.guess_lst[self.num_guess]} word: ")
-            if self.user_word == "?":
-                if not self.potential_words:
-                    self.__search_dictionary()
-                if len(self.potential_words) < 5:
-                    suggestions = self.potential_words
-                else:
-                    suggestions = sample(self.potential_words, 5)
-                print(f'Suggestions: {", ".join(suggestions)}')
-                continue
-            elif len(self.user_word) != WORD_LENGTH:
-                self.printer(f"Word must be {WORD_LENGTH} characters.")
-                continue
-            elif self.user_word not in THE_WORDS:
-                self.printer("That's not a word!")
-                continue
-            self.num_guess += 1
-            break
-
-    def __search_dictionary(self):
+    def search_dictionary(self):
         """Consult known matched characters `self.srch_str` to narrow down
         word candidates.
         """
@@ -145,7 +147,7 @@ class Wordle():
     def __check_guess(self):
         self.__gen_wordle()
         self.__gen_search()
-        self.__search_dictionary()
+        self.search_dictionary()
 
     def __gen_wordle(self):
         """Enumerate through `self.user_word` and compare each character with
@@ -173,11 +175,13 @@ class Wordle():
                 schars = ''.join(set.union(self.unknown_chars[i], self.blacked_out))
                 self.srch_str[i] = f"(?:(?![{schars}])[a-z]){{1}}"
 
-    def play(self):
-        """A single play of Wordle®"""
+    def play(self, callback):
+        """A single play of Wordle®
+        callback is a function that 
+        """
         while self.num_guess < len(self.guess_lst):
             # Prompt for user try
-            self.__user_guess()
+            callback(self)
             # Check user's input
             self.__check_guess()
             # Print Wordle
@@ -240,7 +244,7 @@ def worker(task):
         try:
             wrdl = Wordle(simulate=True, first=firstword, word=word)
             wrdl.quiet = True
-            if wrdl.play():
+            if wrdl.play(user_guess):
                 good += 1
             else:
                 bad += 1
@@ -311,6 +315,6 @@ if __name__ == "__main__":
 
         # Play game
         try:
-            wrdl.play()
+            wrdl.play(user_guess)
         except KeyboardInterrupt:
             print()
