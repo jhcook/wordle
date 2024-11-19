@@ -47,11 +47,9 @@ def user_guess(wrdl):
                 suggestions = sample(wrdl.potential_words, 5)
             print(f'Suggestions: {", ".join(suggestions)}')
             continue
-        elif len(wrdl.user_word) != WORD_LENGTH:
-            wrdl.printer(f"Word must be {WORD_LENGTH} characters.")
-            continue
-        elif wrdl.user_word not in THE_WORDS:
-            wrdl.printer("That's not a word!")
+        elif len(wrdl.user_word) != WORD_LENGTH or wrdl.user_word not in THE_WORDS:
+            wrdl.printer(f"{wrdl.user_word}: not a usable word.")
+            wrdl.potential_words = []
             continue
         wrdl.num_guess += 1
         break
