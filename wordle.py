@@ -48,7 +48,7 @@ def user_guess(wrdl):
             print(f'Suggestions: {", ".join(suggestions)}')
             continue
         elif len(wrdl.user_word) != WORD_LENGTH or wrdl.user_word not in THE_WORDS:
-            wrdl.printer(f"{wrdl.user_word}: not a usable word.")
+            wrdl.printer(f"{wrdl.user_word}: not a usable word")
             wrdl.potential_words = []
             continue
         wrdl.num_guess += 1
@@ -175,7 +175,7 @@ class Wordle():
 
     def play(self, callback):
         """A single play of Wordle®
-        callback is a function that 
+        callback is a function that sets self.user_word.
         """
         while self.num_guess < len(self.guess_lst):
             # Prompt for user try
